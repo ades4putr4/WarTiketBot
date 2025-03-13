@@ -22,31 +22,23 @@ def save_data():
     with open(DATA_FILE, "w") as file:
         json.dump(user_data, file, indent=4)
 
-# Input data dari terminal
-def input_data():
-    chat_id = "user_terminal"
-    print("Silakan masukkan data untuk war tiket:")
-    user_data[chat_id] = {
-        "nama": input("Masukkan Nama: "),
-        "nik": input("Masukkan NIK: "),
-        "hp": input("Masukkan No HP: "),
-        "lokasi": input("Masukkan lokasi penukaran: "),
-        "tanggal": input("Masukkan tanggal penukaran (YYYY-MM-DD): "),
-        "sesi": input("Masukkan sesi (misal: 13:00 atau 14:00): "),
-        "step": "done"
-    }
-    save_data()
-    print("\n✅ Data berhasil disimpan! Tiket akan dipesan otomatis pada jam yang ditentukan.\n")
+# Input data pengguna
+chat_id = "terminal_user"
+user_data[chat_id] = {}
+user_data[chat_id]["nama"] = input("Masukkan Nama: ")
+user_data[chat_id]["nik"] = input("Masukkan NIK: ")
+user_data[chat_id]["hp"] = input("Masukkan No HP: ")
+user_data[chat_id]["lokasi"] = input("Masukkan lokasi penukaran: ")
+user_data[chat_id]["tanggal"] = input("Masukkan tanggal penukaran (YYYY-MM-DD): ")
+user_data[chat_id]["sesi"] = input("Masukkan sesi (misal: 13:00 atau 14:00): ")
+user_data[chat_id]["step"] = "done"
+save_data()
+
+print("✅ Data berhasil disimpan! Tiket akan dipesan otomatis pada jam yang ditentukan.")
 
 # Fungsi untuk booking tiket otomatis
 def war_tiket():
-    chat_id = "user_terminal"
-    data = user_data.get(chat_id)
-    
-    if not data or data.get("step") != "done":
-        print("❌ Tidak ada data yang siap untuk war tiket.")
-        return
-    
+    data = user_data[chat_id]
     try:
         options = webdriver.ChromeOptions()
         options.add_argument("--headless")  # Mode tanpa GUI agar lebih cepat
@@ -76,29 +68,14 @@ def war_tiket():
         time.sleep(2)
 
         driver.quit()
-
-        print(f"\n✅ Tiket berhasil dipesan!\n👤 Nama: {data['nama']}\n📍 Lokasi: {data['lokasi']}\n📅 Tanggal: {data['tanggal']}\n🕐 Sesi: {data['sesi']}\n")
-
+        print(f"✅ Tiket berhasil dipesan!")
     except Exception as e:
         print(f"❌ Gagal mendapatkan tiket: {str(e)}")
 
-# Fungsi untuk menjalankan war tiket otomatis pada jam 00:00
-def run_war():
-    print("\n⏳ Memulai war tiket...\n")
-    war_tiket()
+# Jalankan war tiket otomatis pada pukul 00:00
+schedule.every().day.at("00:00").do(war_tiket)
 
-# Jadwalkan eksekusi pada pukul 00:00
-schedule.every().day.at("00:00").do(run_war)
-
-# Menjalankan program
-def main():
-    print("🔹 War Tiket Terminal 🔹")
-    input_data()  # Input data pengguna pertama kali
-    print("⏳ Menunggu jadwal war tiket pada pukul 00:00...\n")
-
-    while True:
-        schedule.run_pending()
-        time.sleep(1)
-
-if __name__ == "__main__":
-    main()
+# Jalankan scheduler
+while True:
+    schedule.run_pending()
+    time.sleep(1)
