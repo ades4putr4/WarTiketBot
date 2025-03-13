@@ -2,6 +2,8 @@ import telebot
 import schedule
 import time
 import json
+import os
+import threading
 from selenium import webdriver
 from selenium.webdriver.common.by import By
 from selenium.webdriver.common.keys import Keys
@@ -15,12 +17,19 @@ bot = telebot.TeleBot(TOKEN)
 # File penyimpanan data user
 DATA_FILE = "data_user.json"
 
-# Cek apakah file JSON sudah ada, jika tidak buat file kosong
+# Cek apakah file JSON sudah ada dan memiliki isi yang valid
+if not os.path.exists(DATA_FILE) or os.stat(DATA_FILE).st_size == 0:
+    with open(DATA_FILE, "w") as file:
+        json.dump({}, file)
+
+# Load data user dari JSON
 try:
     with open(DATA_FILE, "r") as file:
         user_data = json.load(file)
-except FileNotFoundError:
+except (FileNotFoundError, json.JSONDecodeError):
     user_data = {}
+    with open(DATA_FILE, "w") as file:
+        json.dump(user_data, file, indent=4)
 
 # Fungsi untuk menyimpan data ke JSON
 def save_data():
@@ -32,21 +41,23 @@ def war_tiket(chat_id, data):
     try:
         options = webdriver.ChromeOptions()
         options.add_argument("--headless")  # Mode tanpa GUI agar lebih cepat
+        options.add_argument("--no-sandbox")
+        options.add_argument("--disable-dev-shm-usage")
+
         driver = webdriver.Chrome(service=Service(ChromeDriverManager().install()), options=options)
 
         driver.get("https://pintar.bi.go.id/Order/ListKasKeliling")
         time.sleep(2)
 
         # Klik tombol 'Daftar Penukaran'
-        driver.find_element(By.XPATH, "//button[contains(text(), 'Daftar')]").click()
+        daftar_button = driver.find_element(By.XPATH, "//button[contains(text(), 'Daftar')]")
+        daftar_button.click()
         time.sleep(1)
 
         # Isi Nama
         driver.find_element(By.NAME, "nama").send_keys(data["nama"])
-
         # Isi NIK
         driver.find_element(By.NAME, "nik").send_keys(data["nik"])
-
         # Isi Nomor HP
         driver.find_element(By.NAME, "no_hp").send_keys(data["hp"])
 
@@ -64,13 +75,21 @@ def war_tiket(chat_id, data):
         sesi_dropdown.send_keys(Keys.RETURN)
 
         # Klik Submit
-        driver.find_element(By.XPATH, "//button[contains(text(), 'Submit')]").click()
+        submit_button = driver.find_element(By.XPATH, "//button[contains(text(), 'Submit')]")
+        submit_button.click()
         time.sleep(2)
 
         driver.quit()
         
         # Kirim notifikasi ke Telegram setelah sukses
-        bot.send_message(chat_id, f"✅ Tiket berhasil dipesan!\n\n👤 Nama: {data['nama']}\n📍 Lokasi: {data['lokasi']}\n📅 Tanggal: {data['tanggal']}\n🕐 Sesi: {data['sesi']}")
+        bot.send_message(
+            chat_id,
+            f"✅ Tiket berhasil dipesan!\n\n"
+            f"👤 Nama: {data['nama']}\n"
+            f"📍 Lokasi: {data['lokasi']}\n"
+            f"📅 Tanggal: {data['tanggal']}\n"
+            f"🕐 Sesi: {data['sesi']}"
+        )
 
     except Exception as e:
         bot.send_message(chat_id, f"❌ Gagal mendapatkan tiket: {str(e)}")
@@ -86,17 +105,17 @@ def run_war():
 schedule.every().day.at("13:00").do(run_war)
 schedule.every().day.at("14:00").do(run_war)
 
-# Jalankan bot dan scheduler
+# Jalankan bot dan scheduler secara bersamaan
 def run_bot():
     while True:
         schedule.run_pending()
         time.sleep(1)
 
-import threading
+if __name__ == "__main__":
+    print("Bot berjalan...")
 
-print("Bot berjalan...")
-bot_thread = threading.Thread(target=bot.polling)
-bot_thread.start()
+    bot_thread = threading.Thread(target=bot.polling, kwargs={"none_stop": True})
+    bot_thread.start()
 
-schedule_thread = threading.Thread(target=run_bot)
-schedule_thread.start()
+    schedule_thread = threading.Thread(target=run_bot)
+    schedule_thread.start()
