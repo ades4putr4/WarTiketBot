@@ -1,4 +1,3 @@
-import telebot
 import schedule
 import time
 import json
@@ -7,11 +6,6 @@ from selenium.webdriver.common.by import By
 from selenium.webdriver.common.keys import Keys
 from selenium.webdriver.chrome.service import Service
 from webdriver_manager.chrome import ChromeDriverManager
-import threading
-
-# Masukkan API Token dari BotFather
-TOKEN = "7734160291:AAFZlIe9Xovsv2FSDK8hY6822mt5Owi1C8A"
-bot = telebot.TeleBot(TOKEN)
 
 # File penyimpanan data user
 DATA_FILE = "data_user.json"
@@ -28,60 +22,31 @@ def save_data():
     with open(DATA_FILE, "w") as file:
         json.dump(user_data, file, indent=4)
 
-# Handler untuk perintah /start
-@bot.message_handler(commands=['start'])
-def send_welcome(message):
-    chat_id = str(message.chat.id)
-    bot.send_message(chat_id, "Halo! Silakan masukkan data Anda untuk war tiket.\n\nKetik `/daftar` untuk mulai.")
-
-# Handler untuk perintah /daftar (memasukkan data)
-@bot.message_handler(commands=['daftar'])
-def start_registration(message):
-    chat_id = str(message.chat.id)
-    bot.send_message(chat_id, "Silakan kirim nama Anda:")
-    user_data[chat_id] = {"step": "nama"}
+# Input data dari terminal
+def input_data():
+    chat_id = "user_terminal"
+    print("Silakan masukkan data untuk war tiket:")
+    user_data[chat_id] = {
+        "nama": input("Masukkan Nama: "),
+        "nik": input("Masukkan NIK: "),
+        "hp": input("Masukkan No HP: "),
+        "lokasi": input("Masukkan lokasi penukaran: "),
+        "tanggal": input("Masukkan tanggal penukaran (YYYY-MM-DD): "),
+        "sesi": input("Masukkan sesi (misal: 13:00 atau 14:00): "),
+        "step": "done"
+    }
     save_data()
-
-# Handler untuk menangkap input pengguna
-@bot.message_handler(func=lambda message: str(message.chat.id) in user_data and user_data[str(message.chat.id)]["step"] in ["nama", "nik", "hp", "lokasi", "tanggal", "sesi"])
-def handle_user_input(message):
-    chat_id = str(message.chat.id)
-    step = user_data[chat_id]["step"]
-
-    if step == "nama":
-        user_data[chat_id]["nama"] = message.text
-        bot.send_message(chat_id, "Masukkan NIK:")
-        user_data[chat_id]["step"] = "nik"
-    
-    elif step == "nik":
-        user_data[chat_id]["nik"] = message.text
-        bot.send_message(chat_id, "Masukkan No HP:")
-        user_data[chat_id]["step"] = "hp"
-    
-    elif step == "hp":
-        user_data[chat_id]["hp"] = message.text
-        bot.send_message(chat_id, "Masukkan lokasi penukaran:")
-        user_data[chat_id]["step"] = "lokasi"
-    
-    elif step == "lokasi":
-        user_data[chat_id]["lokasi"] = message.text
-        bot.send_message(chat_id, "Masukkan tanggal penukaran (YYYY-MM-DD):")
-        user_data[chat_id]["step"] = "tanggal"
-    
-    elif step == "tanggal":
-        user_data[chat_id]["tanggal"] = message.text
-        bot.send_message(chat_id, "Masukkan sesi (misal: 13:00 atau 14:00):")
-        user_data[chat_id]["step"] = "sesi"
-    
-    elif step == "sesi":
-        user_data[chat_id]["sesi"] = message.text
-        user_data[chat_id]["step"] = "done"
-        bot.send_message(chat_id, "✅ Data berhasil disimpan! Tiket akan dipesan otomatis pada jam yang ditentukan.")
-    
-    save_data()
+    print("\n✅ Data berhasil disimpan! Tiket akan dipesan otomatis pada jam yang ditentukan.\n")
 
 # Fungsi untuk booking tiket otomatis
-def war_tiket(chat_id, data):
+def war_tiket():
+    chat_id = "user_terminal"
+    data = user_data.get(chat_id)
+    
+    if not data or data.get("step") != "done":
+        print("❌ Tidak ada data yang siap untuk war tiket.")
+        return
+    
     try:
         options = webdriver.ChromeOptions()
         options.add_argument("--headless")  # Mode tanpa GUI agar lebih cepat
@@ -111,35 +76,29 @@ def war_tiket(chat_id, data):
         time.sleep(2)
 
         driver.quit()
-        
-        # Kirim notifikasi ke Telegram setelah sukses
-        bot.send_message(chat_id, f"✅ Tiket berhasil dipesan!\n\n👤 Nama: {data['nama']}\n📍 Lokasi: {data['lokasi']}\n📅 Tanggal: {data['tanggal']}\n🕐 Sesi: {data['sesi']}")
+
+        print(f"\n✅ Tiket berhasil dipesan!\n👤 Nama: {data['nama']}\n📍 Lokasi: {data['lokasi']}\n📅 Tanggal: {data['tanggal']}\n🕐 Sesi: {data['sesi']}\n")
 
     except Exception as e:
-        bot.send_message(chat_id, f"❌ Gagal mendapatkan tiket: {str(e)}")
+        print(f"❌ Gagal mendapatkan tiket: {str(e)}")
 
 # Fungsi untuk menjalankan war tiket otomatis pada jam 00:00
 def run_war():
-    for chat_id, data in user_data.items():
-        if data.get("step") == "done":
-            bot.send_message(chat_id, "⏳ Memulai war tiket...")
-            war_tiket(chat_id, data)
+    print("\n⏳ Memulai war tiket...\n")
+    war_tiket()
 
 # Jadwalkan eksekusi pada pukul 00:00
 schedule.every().day.at("00:00").do(run_war)
 
-# Jalankan bot dan scheduler
-def run_bot():
+# Menjalankan program
+def main():
+    print("🔹 War Tiket Terminal 🔹")
+    input_data()  # Input data pengguna pertama kali
+    print("⏳ Menunggu jadwal war tiket pada pukul 00:00...\n")
+
     while True:
         schedule.run_pending()
         time.sleep(1)
 
-print("Bot berjalan...")
-
-# Menjalankan bot dalam thread agar tidak memblokir
-bot_thread = threading.Thread(target=bot.polling, kwargs={"none_stop": True})
-bot_thread.start()
-
-# Menjalankan scheduler dalam thread terpisah
-schedule_thread = threading.Thread(target=run_bot)
-schedule_thread.start()
+if __name__ == "__main__":
+    main()
